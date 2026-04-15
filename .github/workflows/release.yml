@@ -1,0 +1,72 @@
+name: Release
+
+# Builds the IPK and publishes it as a GitHub Release asset whenever a
+# `v*` tag is pushed. The tag name drives the release name; the version
+# embedded in the IPK filename comes from appinfo.json, so bump both
+# together (e.g. edit appinfo.json to 0.2.0, then `git tag v0.2.0`).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# The default GITHUB_TOKEN needs write permission to create releases and
+# upload assets. Other scopes kept minimal.
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # ares-cli needs a modern-ish Node; 18 is a safe LTS choice.
+          node-version: '18'
+
+      - name: Install @webosose/ares-cli
+        run: npm install -g @webosose/ares-cli
+
+      - name: Read app version from appinfo.json
+        id: appinfo
+        run: |
+          VERSION=$(node -p "require('./com.sk.app.lgtv-vpn/appinfo.json').version")
+          APP_ID=$(node -p "require('./com.sk.app.lgtv-vpn/appinfo.json').id")
+          echo "version=$VERSION"    >> "$GITHUB_OUTPUT"
+          echo "app_id=$APP_ID"       >> "$GITHUB_OUTPUT"
+
+      - name: Sanity-check tag matches appinfo version
+        # If someone tags `v0.2.0` but forgot to bump appinfo.json, fail
+        # loudly instead of publishing a misleadingly-named asset.
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          APPVER="${{ steps.appinfo.outputs.version }}"
+          if [ "$TAG" != "$APPVER" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match appinfo.json version $APPVER"
+            exit 1
+          fi
+
+      - name: Package IPK
+        run: |
+          mkdir -p dist
+          ares-package com.sk.app.lgtv-vpn --outdir dist
+          ls -la dist
+
+      - name: Stage cleanup script alongside the IPK
+        # Users install this separately to /var/lib/webosbrew/init.d/, so
+        # ship it as a loose file next to the IPK in the release.
+        run: cp scripts/lgtv-vpn-split-cleanup.sh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/${{ steps.appinfo.outputs.app_id }}_${{ steps.appinfo.outputs.version }}_all.ipk
+            dist/lgtv-vpn-split-cleanup.sh
