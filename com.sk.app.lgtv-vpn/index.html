@@ -3,11 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>VPN</title>
+  <title>VPN Split</title>
   <link rel="stylesheet" href="./css/style.css"/>
   <script src="webOSTVjs-1.2.4/webOSTV.js"></script>
   <script src="webOSTVjs-1.2.4/webOSTV-dev.js"></script>
   <script src="./lib/spatial_navigation.js"></script>
+  <!-- Routing helpers are shared between the frontend and a possible future
+       JS service; they're plain ES5 and attach to window.* on load. -->
+  <script src="./service/routing-rules.js"></script>
+  <script src="./service/app-monitor.js"></script>
+  <script src="./service/uid-discovery.js"></script>
+  <script src="./service/service.js"></script>
   <script src="./js/index.js" defer></script>
 </head>
 <body>
@@ -24,8 +30,44 @@
 
   <div id="statusBlock">
       <span class="status-label">Status:</span>
-      <span id="state">Checking…</span>
+      <span id="state">Checking&hellip;</span>
+      <span class="status-sep">&middot;</span>
+      <span class="status-label">Routing:</span>
+      <span id="routingMode">ip</span>
+      <span class="status-sep">&middot;</span>
+      <span class="status-label">Foreground:</span>
+      <span id="fgAppId">&mdash;</span>
   </div>
+
+  <section id="routingBlock">
+    <h2>Per-App Routing</h2>
+    <p class="section-hint">
+      Toggle an app <em>on</em> to force its traffic through the VPN while
+      everything else uses your normal connection. The VPN must be connected
+      for routing changes to take effect.
+    </p>
+    <ul id="appList" class="app-list" aria-label="Per-app routing toggles">
+      <!-- Rows injected by js/index.js from cdn-ranges.json + routing.json -->
+    </ul>
+
+    <div class="config-row add-app-row">
+      <label for="customAppId" class="sr-only">Custom app ID</label>
+      <input id="customAppId" class="item" type="text"
+             placeholder="com.vendor.app" autocomplete="off" />
+      <button id="addAppBtn" class="item btn-secondary">Add app ID</button>
+    </div>
+
+    <div class="config-row mode-row">
+      <label class="mode-toggle">
+        <input id="uidMode" class="item" type="checkbox" />
+        <span>Experimental: Process-based routing (requires xt_owner)</span>
+      </label>
+    </div>
+    <p id="uidModeNote" class="section-hint warn" hidden>
+      xt_owner kernel module not detected on this TV; process-based routing
+      has been disabled. IP-based routing is still available.
+    </p>
+  </section>
 
   <div id="debugBlock">
     <pre id="debugInfo"></pre>
